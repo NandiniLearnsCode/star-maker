@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl, type InsertStarAnswer } from "@shared/routes";
+import { api, buildUrl } from "@shared/routes";
+import { type InsertStarAnswer, type StarAnswer } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspaceId } from "@/lib/workspace";
 
@@ -9,7 +10,7 @@ function wsHeaders(workspaceId: string) {
 
 export function useStarAnswers(experienceId?: number) {
   const wsId = useWorkspaceId();
-  return useQuery({
+  return useQuery<StarAnswer[]>({
     queryKey: [api.starAnswers.list.path, experienceId, wsId],
     queryFn: async () => {
       let url = api.starAnswers.list.path;
