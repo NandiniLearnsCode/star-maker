@@ -1,17 +1,20 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { type StarAnswer, type Company } from "@shared/schema";
 import { useUpdateStarAnswer, useDeleteStarAnswer, useCustomizeStarAnswer } from "@/hooks/use-star-answers";
 import { useScrapeCompany, useCompanies } from "@/hooks/use-companies";
+import { useWorkspaceId } from "@/lib/workspace";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Edit2, Save, X, Trash2, Building, Sparkles, Target, Activity, CheckCircle, ArrowRight } from "lucide-react";
+import { Edit2, Save, X, Trash2, Building, Sparkles, Target, Activity, CheckCircle, Mic } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function StarAnswerCard({ answer }: { answer: StarAnswer }) {
+  const wsId = useWorkspaceId();
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     situation: answer.situation,
@@ -75,6 +78,13 @@ export function StarAnswerCard({ answer }: { answer: StarAnswer }) {
           <div className="flex gap-2">
             {!isEditing ? (
               <>
+                <Button variant="outline" size="sm" asChild className="hover-elevate">
+                  <Link href={`/w/${wsId}/practice?answerId=${answer.id}`}>
+                    <Mic className="w-4 h-4 mr-2" />
+                    Practice
+                  </Link>
+                </Button>
+
                 <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" size="sm" className="hover-elevate" data-testid={`button-tailor-${answer.id}`}>

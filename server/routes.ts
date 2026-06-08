@@ -7,6 +7,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import multer from "multer";
 import mammoth from "mammoth";
 import crypto from "crypto";
+import { getElevenLabsConversationToken } from "./elevenlabs";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -122,6 +123,100 @@ Return ONLY a JSON object with keys: "situation", "task", "action", "result", "r
   } catch (e) {
     console.error("Failed to parse Customization JSON", responseText);
     return null;
+  }
+}
+
+function selectedStarAnswerIds(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((id): id is number => typeof id === "number");
+}
+
+function formatStarAnswerForPrompt(answer: any) {
+  return [
+    `Competency: ${answer.competency}`,
+    `Situation: ${answer.situation}`,
+    `Task: ${answer.task}`,
+    `Action: ${answer.action}`,
+    `Result: ${answer.result}`,
+  ].join("\n");
+}
+
+async function getPracticeContext(session: any, workspaceId: string) {
+  const ids = selectedStarAnswerIds(session.selectedStarAnswerIds);
+  const answers = [];
+  for (const id of ids) {
+    const answer = await storage.getStarAnswer(id);
+    if (answer && answer.workspaceId === workspaceId) {
+      answers.push(answer);
+    }
+  }
+
+  const company = session.companyId ? await storage.getCompany(session.companyId) : undefined;
+  const companyContext = company && company.workspaceId === workspaceId
+    ? [
+        `Company: ${company.name}`,
+        company.industry ? `Industry: ${company.industry}` : null,
+        company.mission ? `Mission: ${company.mission}` : null,
+        company.cultureKeywords ? `Culture keywords: ${JSON.stringify(company.cultureKeywords)}` : null,
+      ].filter(Boolean).join("\n")
+    : "No target company selected.";
+
+  const selectedStories = answers.length
+    ? answers.map((answer, index) => `Story ${index + 1}\n${formatStarAnswerForPrompt(answer)}`).join("\n\n")
+    : "No prepared STAR stories were selected.";
+
+  return {
+    answers,
+    company,
+    dynamicVariables: {
+      candidate_context: "The candidate is practicing behavioral interviews using STAR-format stories generated from their own experiences.",
+      selected_star_stories: selectedStories,
+      target_company_context: companyContext,
+      target_role: session.targetRole || "General internship or early-career role",
+      practice_mode: session.mode || "behavioral",
+    },
+  };
+}
+
+async function generatePracticeFeedback(session: any, turns: any[]) {
+  const transcript = turns.map(turn => `${turn.speaker === "agent" ? "Interviewer" : "Candidate"}: ${turn.text}`).join("\n");
+  const prompt = `You are an expert behavioral interview coach. Evaluate this mock interview transcript.
+
+Session mode: ${session.mode}
+Target role: ${session.targetRole || "General role"}
+
+Transcript:
+${transcript}
+
+Return ONLY a JSON object with these keys:
+- "summary": 2-3 sentences summarizing the practice session.
+- "scores": an object with numeric 1-5 scores for "starStructure", "specificity", "impact", "conciseness", "followUpHandling", and "confidence".
+- "strengths": an array of 2-4 concise strengths.
+- "improvements": an array of 2-4 specific improvements.
+- "nextQuestion": one behavioral interview question the candidate should practice next.
+- "recommendedRewrite": a concise example of how the candidate could improve one answer using STAR structure.
+
+Be direct, supportive, and practical.`;
+
+  const msg = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 2500,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  const responseText = msg.content[0].type === "text" ? msg.content[0].text : "{}";
+  try {
+    return JSON.parse(responseText.replace(/```json/g, "").replace(/```/g, "").trim());
+  } catch (e) {
+    console.error("Failed to parse practice feedback JSON", responseText);
+    return {
+      summary: "Your practice session was recorded, but the feedback could not be parsed automatically.",
+      scores: {},
+      strengths: [],
+      improvements: ["Review the transcript and identify one answer to tighten into a clearer STAR structure."],
+      nextQuestion: "Tell me about a time you handled a difficult challenge.",
+      recommendedRewrite: "",
+    };
   }
 }
 
@@ -448,6 +543,166 @@ No markdown formatting, just the JSON object.`;
       }
       console.error("Company scrape error:", err);
       res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Voice practice sessions (workspace-scoped)
+  app.get(api.practiceSessions.list.path, requireWorkspace, async (req, res) => {
+    const wsId = (req as any).workspaceId;
+    const sessions = await storage.getPracticeSessions(wsId);
+    res.json(sessions);
+  });
+
+  app.post(api.practiceSessions.create.path, requireWorkspace, async (req, res) => {
+    try {
+      const wsId = (req as any).workspaceId;
+      const input = api.practiceSessions.create.input.parse(req.body);
+
+      for (const answerId of input.selectedStarAnswerIds) {
+        const answer = await storage.getStarAnswer(answerId);
+        if (!answer || answer.workspaceId !== wsId) {
+          return res.status(404).json({ message: "Selected STAR answer not found" });
+        }
+      }
+
+      if (input.companyId) {
+        const company = await storage.getCompany(input.companyId);
+        if (!company || company.workspaceId !== wsId) {
+          return res.status(404).json({ message: "Company not found" });
+        }
+      }
+
+      const session = await storage.createPracticeSession({
+        workspaceId: wsId,
+        status: "created",
+        mode: input.mode,
+        targetRole: input.targetRole || null,
+        companyId: input.companyId || null,
+        selectedStarAnswerIds: input.selectedStarAnswerIds,
+        elevenLabsConversationId: null,
+        transcriptSummary: null,
+        feedback: null,
+        startedAt: null,
+        endedAt: null,
+      });
+
+      res.status(201).json(session);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
+      }
+      console.error("Practice session create error:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get(api.practiceSessions.get.path, requireWorkspace, async (req, res) => {
+    const wsId = (req as any).workspaceId;
+    const session = await storage.getPracticeSession(Number(req.params.id));
+    if (!session || session.workspaceId !== wsId) return res.status(404).json({ message: "Practice session not found" });
+
+    const turns = await storage.getPracticeTurns(session.id);
+    res.json({ session, turns });
+  });
+
+  app.post(api.practiceSessions.conversationToken.path, requireWorkspace, async (req, res) => {
+    const wsId = (req as any).workspaceId;
+    const session = await storage.getPracticeSession(Number(req.params.id));
+    if (!session || session.workspaceId !== wsId) return res.status(404).json({ message: "Practice session not found" });
+
+    try {
+      const { dynamicVariables } = await getPracticeContext(session, wsId);
+      const token = await getElevenLabsConversationToken();
+      const updated = await storage.updatePracticeSession(session.id, {
+        status: "active",
+        startedAt: session.startedAt || new Date(),
+      });
+
+      res.json({
+        token,
+        practiceSessionId: updated.id,
+        dynamicVariables,
+      });
+    } catch (err) {
+      console.error("ElevenLabs token error:", err);
+      res.status(500).json({ message: err instanceof Error ? err.message : "Failed to start voice practice" });
+    }
+  });
+
+  app.post(api.practiceSessions.addTurn.path, requireWorkspace, async (req, res) => {
+    try {
+      const wsId = (req as any).workspaceId;
+      const session = await storage.getPracticeSession(Number(req.params.id));
+      if (!session || session.workspaceId !== wsId) return res.status(404).json({ message: "Practice session not found" });
+
+      const input = api.practiceSessions.addTurn.input.parse(req.body);
+      const existingTurns = await storage.getPracticeTurns(session.id);
+      const sequence = input.sequence ?? existingTurns.length;
+      const turn = await storage.createPracticeTurn({
+        workspaceId: wsId,
+        sessionId: session.id,
+        speaker: input.speaker,
+        text: input.text,
+        sequence,
+        metadata: input.metadata || null,
+      });
+
+      res.status(201).json(turn);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
+      }
+      console.error("Practice turn create error:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post(api.practiceSessions.complete.path, requireWorkspace, async (req, res) => {
+    try {
+      const wsId = (req as any).workspaceId;
+      const session = await storage.getPracticeSession(Number(req.params.id));
+      if (!session || session.workspaceId !== wsId) return res.status(404).json({ message: "Practice session not found" });
+
+      const input = api.practiceSessions.complete.input.parse(req.body);
+      const updated = await storage.updatePracticeSession(session.id, {
+        status: "completed",
+        endedAt: new Date(),
+        elevenLabsConversationId: input?.elevenLabsConversationId || session.elevenLabsConversationId,
+      });
+
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      console.error("Practice session complete error:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post(api.practiceSessions.feedback.path, requireWorkspace, async (req, res) => {
+    try {
+      const wsId = (req as any).workspaceId;
+      const session = await storage.getPracticeSession(Number(req.params.id));
+      if (!session || session.workspaceId !== wsId) return res.status(404).json({ message: "Practice session not found" });
+
+      const turns = await storage.getPracticeTurns(session.id);
+      if (turns.length === 0) {
+        return res.status(400).json({ message: "No transcript turns found for this practice session" });
+      }
+
+      const feedback = await generatePracticeFeedback(session, turns);
+      const updated = await storage.updatePracticeSession(session.id, {
+        feedback,
+        transcriptSummary: feedback.summary || null,
+        status: "completed",
+        endedAt: session.endedAt || new Date(),
+      });
+
+      res.json(updated);
+    } catch (err) {
+      console.error("Practice feedback error:", err);
+      res.status(500).json({ message: "Failed to generate practice feedback" });
     }
   });
 

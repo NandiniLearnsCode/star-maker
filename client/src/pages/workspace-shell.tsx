@@ -5,6 +5,7 @@ import { setStoredWorkspaceId } from "@/lib/workspace";
 import Experiences from "@/pages/experiences";
 import ExperienceDetail from "@/pages/experience-detail";
 import AnswerBank from "@/pages/answer-bank";
+import Practice from "@/pages/practice";
 import { Loader2 } from "lucide-react";
 
 export default function WorkspaceShell() {
@@ -42,6 +43,7 @@ export default function WorkspaceShell() {
         <Route path="/w/:workspaceId/experiences" component={Experiences} />
         <Route path="/w/:workspaceId/experiences/:id" component={ExperienceDetail} />
         <Route path="/w/:workspaceId/answer-bank" component={AnswerBank} />
+        <Route path="/w/:workspaceId/practice" component={Practice} />
         <Route component={() => <Redirect to={`/w/${workspaceId}/experiences`} />} />
       </Switch>
     </WorkspaceProvider>
