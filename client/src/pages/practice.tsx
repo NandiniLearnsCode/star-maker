@@ -154,10 +154,18 @@ export default function Practice() {
       setActiveSession(session);
 
       const tokenData = await tokenMutation.mutateAsync(session.id);
+      const openingQuestion = tokenData.dynamicVariables.opening_question;
       const conversation = await Conversation.startSession({
         conversationToken: tokenData.token,
         connectionType: "webrtc",
         dynamicVariables: tokenData.dynamicVariables,
+        overrides: openingQuestion
+          ? {
+              agent: {
+                firstMessage: openingQuestion,
+              },
+            }
+          : undefined,
         userId: wsId,
         onConnect: () => {
           setStatus("connected");
@@ -314,9 +322,25 @@ export default function Practice() {
                                 <Badge variant="outline">{answer.competency}</Badge>
                                 {exp && <span className="text-xs text-muted-foreground">{exp.title} at {exp.organization}</span>}
                               </div>
-                              <p className="text-sm text-muted-foreground line-clamp-2">
-                                {answer.situation}
-                              </p>
+                              {checked ? (
+                                <div className="mt-3 grid gap-3 text-sm">
+                                  {[
+                                    ["Situation", answer.situation],
+                                    ["Task", answer.task],
+                                    ["Action", answer.action],
+                                    ["Result", answer.result],
+                                  ].map(([label, text]) => (
+                                    <div key={label} className="rounded-lg bg-background/70 border border-border/50 p-3">
+                                      <div className="text-[10px] uppercase tracking-wide text-primary font-semibold mb-1">{label}</div>
+                                      <p className="text-muted-foreground leading-relaxed">{text}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
+                                  {answer.situation}
+                                </p>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -329,7 +353,10 @@ export default function Practice() {
 
             <Card className="border-border/60 shadow-sm">
               <CardHeader>
-                <CardTitle>Practice setup</CardTitle>
+                <CardTitle>Interview context</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  These details shape the questions for the selected stories above. They do not create a separate set of stories.
+                </p>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div>

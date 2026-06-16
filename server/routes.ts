@@ -151,22 +151,53 @@ function inferAmazonLeadershipPrinciple(competency: string, targetRole?: string 
   return "Ownership";
 }
 
+function compactText(value: unknown, maxWords = 22) {
+  if (typeof value !== "string") return "";
+  const words = value
+    .replace(/\s+/g, " ")
+    .replace(/[.!?]+$/g, "")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+
+  if (words.length <= maxWords) return words.join(" ");
+  return `${words.slice(0, maxWords).join(" ")}...`;
+}
+
+function buildStorySpecificPrompt(answer: any) {
+  if (!answer) {
+    return "a challenging situation from your experience";
+  }
+
+  const situation = compactText(answer.situation, 24);
+  const action = compactText(answer.action, 18);
+  const result = compactText(answer.result, 16);
+  const parts = [
+    situation ? `where ${situation}` : null,
+    action ? `and you had to ${action.charAt(0).toLowerCase()}${action.slice(1)}` : null,
+    result ? `to drive ${result.charAt(0).toLowerCase()}${result.slice(1)}` : null,
+  ].filter(Boolean);
+
+  return parts.length ? parts.join(" ") : `related to ${answer.competency || "your experience"}`;
+}
+
 function buildOpeningQuestion(session: any, answers: any[], companyName?: string | null) {
   const firstAnswer = answers[0];
   const competency = firstAnswer?.competency || "behavioral judgment";
   const role = session.targetRole || "the role";
   const company = companyName?.trim();
+  const storyFocus = buildStorySpecificPrompt(firstAnswer);
 
   if (company && company.toLowerCase().includes("amazon")) {
     const principle = inferAmazonLeadershipPrinciple(competency, session.targetRole);
-    return `Hi, I will run this like an Amazon ${role} behavioral interview. Let's start with Amazon's ${principle} leadership principle: tell me about a time you demonstrated ${principle.toLowerCase()} in a situation related to ${competency}.`;
+    return `Hi, I will run this like an Amazon ${role} behavioral interview. Let's start with Amazon's ${principle} leadership principle. In your resume, I noticed a ${competency.toLowerCase()} story ${storyFocus}. Tell me about that situation and how your choices demonstrated ${principle}.`;
   }
 
   if (company) {
-    return `Hi, I will run this like a ${company} interview for ${role}. Let's start with a behavioral question connected to ${competency}: tell me about a time you used that strength to create impact.`;
+    return `Hi, I will run this like a ${company} interview for ${role}. I noticed a ${competency.toLowerCase()} story in your resume ${storyFocus}. Walk me through that example and the impact you had.`;
   }
 
-  return `Hi, I will run this like a behavioral interview for ${role}. Let's start with ${competency}: tell me about a time you demonstrated this skill in a challenging situation.`;
+  return `Hi, I will run this like a behavioral interview for ${role}. I noticed a ${competency.toLowerCase()} story in your resume ${storyFocus}. Walk me through that example and the impact you had.`;
 }
 
 async function getPracticeContext(session: any, workspaceId: string) {
