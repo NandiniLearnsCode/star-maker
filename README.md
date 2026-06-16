@@ -59,3 +59,25 @@ STAR Maker — AI-powered career story builder that helps students and early-car
    ```
 
 The ElevenLabs voice practice flow needs both `ELEVENLABS_API_KEY` and `ELEVENLABS_AGENT_ID`. The rest of the app will load, but starting a voice practice session will fail until those are set.
+
+### ElevenLabs agent prompt variables
+
+Set your ElevenLabs agent's first message to:
+
+```text
+{{opening_question}}
+```
+
+StarMaker sends this dynamic variable when voice practice starts. It is built from the selected STAR story, target role, target company, and practice mode. For example, if the target company is Amazon and the target role is Product Manager, the opening question will reference a relevant Amazon leadership principle.
+
+The app also sends these dynamic variables for your agent prompt:
+
+```text
+{{candidate_context}}
+{{selected_star_stories}}
+{{target_company_context}}
+{{target_company_name}}
+{{target_role}}
+{{practice_mode}}
+{{opening_question}}
+```

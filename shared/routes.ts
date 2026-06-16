@@ -177,6 +177,7 @@ export const api = {
         selectedStarAnswerIds: z.array(z.number()).min(1, "Choose at least one STAR story to practice"),
         mode: z.enum(['behavioral', 'company', 'story_focus']).default('behavioral'),
         targetRole: z.string().trim().optional(),
+        targetCompanyName: z.string().trim().optional(),
         companyId: z.number().optional(),
       }),
       responses: {

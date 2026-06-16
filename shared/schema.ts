@@ -53,6 +53,7 @@ export const practiceSessions = pgTable("practice_sessions", {
   status: text("status").notNull().default("created"),
   mode: text("mode").notNull().default("behavioral"),
   targetRole: text("target_role"),
+  targetCompanyName: text("target_company_name"),
   companyId: integer("company_id").references(() => companies.id),
   selectedStarAnswerIds: jsonb("selected_star_answer_ids").notNull(),
   elevenLabsConversationId: text("elevenlabs_conversation_id"),

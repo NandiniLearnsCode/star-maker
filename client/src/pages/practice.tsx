@@ -67,6 +67,7 @@ export default function Practice() {
     return Number.isFinite(answerId) && answerId > 0 ? [answerId] : [];
   });
   const [targetRole, setTargetRole] = useState("");
+  const [targetCompanyName, setTargetCompanyName] = useState("");
   const [mode, setMode] = useState<"behavioral" | "company" | "story_focus">("behavioral");
   const [activeSession, setActiveSession] = useState<PracticeSession | null>(null);
   const [latestFeedbackSession, setLatestFeedbackSession] = useState<PracticeSession | null>(null);
@@ -136,6 +137,7 @@ export default function Practice() {
         selectedStarAnswerIds: selectedIds,
         mode,
         targetRole: targetRole.trim() || undefined,
+        targetCompanyName: targetCompanyName.trim() || undefined,
       });
       setActiveSession(session);
 
@@ -327,6 +329,20 @@ export default function Practice() {
                     onChange={event => setTargetRole(event.target.value)}
                     disabled={isConnected}
                   />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-foreground">Target company</label>
+                  <Input
+                    className="mt-2"
+                    placeholder="e.g. Amazon, Google, Stripe"
+                    value={targetCompanyName}
+                    onChange={event => setTargetCompanyName(event.target.value)}
+                    disabled={isConnected}
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Used to personalize the interviewer's first question, such as Amazon leadership principles.
+                  </p>
                 </div>
 
                 <div>

@@ -141,6 +141,34 @@ function formatStarAnswerForPrompt(answer: any) {
   ].join("\n");
 }
 
+function inferAmazonLeadershipPrinciple(competency: string, targetRole?: string | null) {
+  const text = `${competency} ${targetRole || ""}`.toLowerCase();
+  if (text.includes("product") || text.includes("customer") || text.includes("user")) return "Customer Obsession";
+  if (text.includes("lead")) return "Ownership";
+  if (text.includes("problem") || text.includes("analysis") || text.includes("data")) return "Dive Deep";
+  if (text.includes("invent") || text.includes("innovation") || text.includes("build")) return "Invent and Simplify";
+  if (text.includes("conflict") || text.includes("stakeholder") || text.includes("communication")) return "Earn Trust";
+  return "Ownership";
+}
+
+function buildOpeningQuestion(session: any, answers: any[], companyName?: string | null) {
+  const firstAnswer = answers[0];
+  const competency = firstAnswer?.competency || "behavioral judgment";
+  const role = session.targetRole || "the role";
+  const company = companyName?.trim();
+
+  if (company && company.toLowerCase().includes("amazon")) {
+    const principle = inferAmazonLeadershipPrinciple(competency, session.targetRole);
+    return `Hi, I will run this like an Amazon ${role} behavioral interview. Let's start with Amazon's ${principle} leadership principle: tell me about a time you demonstrated ${principle.toLowerCase()} in a situation related to ${competency}.`;
+  }
+
+  if (company) {
+    return `Hi, I will run this like a ${company} interview for ${role}. Let's start with a behavioral question connected to ${competency}: tell me about a time you used that strength to create impact.`;
+  }
+
+  return `Hi, I will run this like a behavioral interview for ${role}. Let's start with ${competency}: tell me about a time you demonstrated this skill in a challenging situation.`;
+}
+
 async function getPracticeContext(session: any, workspaceId: string) {
   const ids = selectedStarAnswerIds(session.selectedStarAnswerIds);
   const answers = [];
@@ -152,6 +180,9 @@ async function getPracticeContext(session: any, workspaceId: string) {
   }
 
   const company = session.companyId ? await storage.getCompany(session.companyId) : undefined;
+  const targetCompanyName = company && company.workspaceId === workspaceId
+    ? company.name
+    : session.targetCompanyName;
   const companyContext = company && company.workspaceId === workspaceId
     ? [
         `Company: ${company.name}`,
@@ -159,11 +190,14 @@ async function getPracticeContext(session: any, workspaceId: string) {
         company.mission ? `Mission: ${company.mission}` : null,
         company.cultureKeywords ? `Culture keywords: ${JSON.stringify(company.cultureKeywords)}` : null,
       ].filter(Boolean).join("\n")
-    : "No target company selected.";
+    : targetCompanyName
+      ? `Target company: ${targetCompanyName}`
+      : "No target company selected.";
 
   const selectedStories = answers.length
     ? answers.map((answer, index) => `Story ${index + 1}\n${formatStarAnswerForPrompt(answer)}`).join("\n\n")
     : "No prepared STAR stories were selected.";
+  const openingQuestion = buildOpeningQuestion(session, answers, targetCompanyName);
 
   return {
     answers,
@@ -172,8 +206,10 @@ async function getPracticeContext(session: any, workspaceId: string) {
       candidate_context: "The candidate is practicing behavioral interviews using STAR-format stories generated from their own experiences.",
       selected_star_stories: selectedStories,
       target_company_context: companyContext,
+      target_company_name: targetCompanyName || "No target company selected",
       target_role: session.targetRole || "General internship or early-career role",
       practice_mode: session.mode || "behavioral",
+      opening_question: openingQuestion,
     },
   };
 }
@@ -577,6 +613,7 @@ No markdown formatting, just the JSON object.`;
         status: "created",
         mode: input.mode,
         targetRole: input.targetRole || null,
+        targetCompanyName: input.targetCompanyName || null,
         companyId: input.companyId || null,
         selectedStarAnswerIds: input.selectedStarAnswerIds,
         elevenLabsConversationId: null,
