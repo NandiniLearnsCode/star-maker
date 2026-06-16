@@ -4,6 +4,8 @@ import { z } from "zod";
 
 export const workspaces = pgTable("workspaces", {
   id: varchar("id", { length: 32 }).primaryKey(),
+  targetRole: text("target_role"),
+  targetCompanyName: text("target_company_name"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

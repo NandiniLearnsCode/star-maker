@@ -3,6 +3,7 @@ import {
   insertExperienceSchema,
   insertStarAnswerSchema,
   insertCompanySchema,
+  workspaces,
   experiences,
   starAnswers,
   companies,
@@ -24,6 +25,21 @@ export const errorSchemas = {
 };
 
 export const api = {
+  workspaces: {
+    updatePreferences: {
+      method: 'PUT' as const,
+      path: '/api/workspaces/preferences' as const,
+      input: z.object({
+        targetRole: z.string().trim().optional(),
+        targetCompanyName: z.string().trim().optional(),
+      }),
+      responses: {
+        200: z.custom<typeof workspaces.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
+  },
   experiences: {
     list: {
       method: 'GET' as const,

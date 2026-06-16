@@ -1,9 +1,10 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { Plus, Upload, Briefcase, Calendar, ChevronRight, FileText, Sparkles, Loader2 } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { useExperiences, useCreateExperience, useParseResume, useUploadResume } from "@/hooks/use-experiences";
+import { useUpdateWorkspacePreferences, useWorkspacePreferences } from "@/hooks/use-workspace-preferences";
 import { useWorkspaceId } from "@/lib/workspace";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -18,6 +19,8 @@ export default function Experiences() {
   const createMutation = useCreateExperience();
   const parseMutation = useParseResume();
   const uploadMutation = useUploadResume();
+  const { data: workspacePreferences } = useWorkspacePreferences();
+  const updateWorkspacePreferences = useUpdateWorkspacePreferences();
   const wsId = useWorkspaceId();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -31,10 +34,35 @@ export default function Experiences() {
   });
   const [resumeText, setResumeText] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [interviewTarget, setInterviewTarget] = useState({
+    targetCompanyName: "",
+    targetRole: "",
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleManualSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (workspacePreferences) {
+      setInterviewTarget({
+        targetCompanyName: workspacePreferences.targetCompanyName || "",
+        targetRole: workspacePreferences.targetRole || "",
+      });
+    }
+  }, [workspacePreferences]);
+
+  const saveInterviewTarget = () => {
+    return updateWorkspacePreferences.mutateAsync({
+      targetCompanyName: interviewTarget.targetCompanyName,
+      targetRole: interviewTarget.targetRole,
+    });
+  };
+
+  const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      await saveInterviewTarget();
+    } catch {
+      return;
+    }
     createMutation.mutate(manualForm, {
       onSuccess: () => {
         setIsOpen(false);
@@ -43,8 +71,13 @@ export default function Experiences() {
     });
   };
 
-  const handleParseSubmit = (e: React.FormEvent) => {
+  const handleParseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      await saveInterviewTarget();
+    } catch {
+      return;
+    }
     parseMutation.mutate(resumeText, {
       onSuccess: () => {
         setIsOpen(false);
@@ -87,6 +120,35 @@ export default function Experiences() {
                 </TabsList>
                 
                 <div className="p-6">
+                  <div className="mb-6 rounded-xl border border-border/60 bg-muted/20 p-4 space-y-3">
+                    <div>
+                      <h3 className="font-display font-semibold text-sm">Optional interview target</h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Add this now if you already know where you are interviewing. You can change it later in Voice Practice.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>Target company</Label>
+                        <Input
+                          placeholder="e.g. Amazon"
+                          value={interviewTarget.targetCompanyName}
+                          onChange={e => setInterviewTarget(prev => ({ ...prev, targetCompanyName: e.target.value }))}
+                          data-testid="input-target-company"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Target role</Label>
+                        <Input
+                          placeholder="e.g. Product Manager"
+                          value={interviewTarget.targetRole}
+                          onChange={e => setInterviewTarget(prev => ({ ...prev, targetRole: e.target.value }))}
+                          data-testid="input-target-role"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <TabsContent value="upload" className="mt-0 outline-none">
                     <div className="space-y-4">
                       <div className="space-y-2">
@@ -131,9 +193,14 @@ export default function Experiences() {
                       </div>
                       <Button
                         className="w-full"
-                        disabled={!selectedFile || uploadMutation.isPending}
-                        onClick={() => {
+                        disabled={!selectedFile || uploadMutation.isPending || updateWorkspacePreferences.isPending}
+                        onClick={async () => {
                           if (selectedFile) {
+                            try {
+                              await saveInterviewTarget();
+                            } catch {
+                              return;
+                            }
                             uploadMutation.mutate(selectedFile, {
                               onSuccess: () => {
                                 setIsOpen(false);
@@ -145,10 +212,10 @@ export default function Experiences() {
                         }}
                         data-testid="button-upload-resume"
                       >
-                        {uploadMutation.isPending ? (
+                        {(uploadMutation.isPending || updateWorkspacePreferences.isPending) ? (
                           <>
                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Extracting experiences...
+                            Saving and extracting...
                           </>
                         ) : (
                           "Upload & Extract Experiences"
@@ -169,11 +236,11 @@ export default function Experiences() {
                           data-testid="textarea-paste-resume"
                         />
                       </div>
-                      <Button type="submit" className="w-full" disabled={!resumeText || parseMutation.isPending} data-testid="button-parse-resume">
-                        {parseMutation.isPending ? (
+                      <Button type="submit" className="w-full" disabled={!resumeText || parseMutation.isPending || updateWorkspacePreferences.isPending} data-testid="button-parse-resume">
+                        {(parseMutation.isPending || updateWorkspacePreferences.isPending) ? (
                           <>
                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Extracting...
+                            Saving and extracting...
                           </>
                         ) : "Extract Experiences"}
                       </Button>
@@ -207,8 +274,8 @@ export default function Experiences() {
                           data-testid="textarea-description"
                         />
                       </div>
-                      <Button type="submit" className="w-full" disabled={createMutation.isPending} data-testid="button-save-experience">
-                        Save Experience
+                      <Button type="submit" className="w-full" disabled={createMutation.isPending || updateWorkspacePreferences.isPending} data-testid="button-save-experience">
+                        {(createMutation.isPending || updateWorkspacePreferences.isPending) ? "Saving..." : "Save Experience"}
                       </Button>
                     </form>
                   </TabsContent>

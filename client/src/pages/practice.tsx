@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Conversation, type Conversation as ElevenLabsConversation, type Mode, type Status } from "@elevenlabs/client";
 import { Layout } from "@/components/layout";
 import { useStarAnswers } from "@/hooks/use-star-answers";
@@ -12,6 +12,7 @@ import {
   usePracticeSessions,
 } from "@/hooks/use-practice";
 import { useWorkspaceId } from "@/lib/workspace";
+import { useWorkspacePreferences } from "@/hooks/use-workspace-preferences";
 import { useToast } from "@/hooks/use-toast";
 import { type PracticeSession } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +52,7 @@ export default function Practice() {
   const { toast } = useToast();
   const { data: answers, isLoading: answersLoading } = useStarAnswers();
   const { data: experiences } = useExperiences();
+  const { data: workspacePreferences } = useWorkspacePreferences();
   const { data: sessions } = usePracticeSessions();
   const createSession = useCreatePracticeSession();
   const tokenMutation = usePracticeConversationToken();
@@ -87,6 +89,16 @@ export default function Practice() {
   const isStarting = createSession.isPending || tokenMutation.isPending || status === "connecting";
   const selectedCount = selectedIds.length;
   const feedback = asFeedback(latestFeedbackSession?.feedback || activeSession?.feedback);
+
+  useEffect(() => {
+    if (!workspacePreferences) return;
+    if (!targetRole && workspacePreferences.targetRole) {
+      setTargetRole(workspacePreferences.targetRole);
+    }
+    if (!targetCompanyName && workspacePreferences.targetCompanyName) {
+      setTargetCompanyName(workspacePreferences.targetCompanyName);
+    }
+  }, [targetCompanyName, targetRole, workspacePreferences]);
 
   const toggleAnswer = (answerId: number) => {
     setSelectedIds(current =>

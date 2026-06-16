@@ -274,6 +274,24 @@ export async function registerRoutes(
     res.json(ws);
   });
 
+  app.put(api.workspaces.updatePreferences.path, requireWorkspace, async (req, res) => {
+    try {
+      const wsId = (req as any).workspaceId;
+      const input = api.workspaces.updatePreferences.input.parse(req.body);
+      const updated = await storage.updateWorkspacePreferences(wsId, {
+        targetRole: input.targetRole?.trim() || null,
+        targetCompanyName: input.targetCompanyName?.trim() || null,
+      });
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
+      }
+      console.error("Workspace preferences update error:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Experiences (all workspace-scoped)
   app.get(api.experiences.list.path, requireWorkspace, async (req, res) => {
     const wsId = (req as any).workspaceId;

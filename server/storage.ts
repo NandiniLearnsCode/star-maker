@@ -20,6 +20,7 @@ import { eq, desc, and, asc } from "drizzle-orm";
 export interface IStorage {
   createWorkspace(id: string): Promise<typeof workspaces.$inferSelect>;
   getWorkspace(id: string): Promise<typeof workspaces.$inferSelect | undefined>;
+  updateWorkspacePreferences(id: string, preferences: { targetRole: string | null; targetCompanyName: string | null }): Promise<typeof workspaces.$inferSelect>;
 
   getExperiences(workspaceId: string): Promise<(typeof experiences.$inferSelect)[]>;
   getExperience(id: number): Promise<typeof experiences.$inferSelect | undefined>;
@@ -54,6 +55,10 @@ export class DatabaseStorage implements IStorage {
   async getWorkspace(id: string) {
     const [ws] = await db.select().from(workspaces).where(eq(workspaces.id, id));
     return ws;
+  }
+  async updateWorkspacePreferences(id: string, preferences: { targetRole: string | null; targetCompanyName: string | null }) {
+    const [updated] = await db.update(workspaces).set(preferences).where(eq(workspaces.id, id)).returning();
+    return updated;
   }
 
   async getExperiences(workspaceId: string) {
