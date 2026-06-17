@@ -47,6 +47,28 @@ function selectedAnswerIds(value: unknown): number[] {
   return Array.isArray(value) ? value.filter((id): id is number => typeof id === "number") : [];
 }
 
+function compactText(value: string, maxWords = 22) {
+  const words = value
+    .replace(/\s+/g, " ")
+    .replace(/[.!?]+$/g, "")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+
+  if (words.length <= maxWords) return words.join(" ");
+  return `${words.slice(0, maxWords).join(" ")}...`;
+}
+
+function inferAmazonLeadershipPrinciple(competency: string, targetRole: string) {
+  const text = `${competency} ${targetRole}`.toLowerCase();
+  if (text.includes("product") || text.includes("customer") || text.includes("user")) return "Customer Obsession";
+  if (text.includes("lead")) return "Ownership";
+  if (text.includes("problem") || text.includes("analysis") || text.includes("data")) return "Dive Deep";
+  if (text.includes("invent") || text.includes("innovation") || text.includes("build")) return "Invent and Simplify";
+  if (text.includes("conflict") || text.includes("stakeholder") || text.includes("communication")) return "Earn Trust";
+  return "Ownership";
+}
+
 export default function Practice() {
   const wsId = useWorkspaceId();
   const { toast } = useToast();
@@ -89,6 +111,33 @@ export default function Practice() {
   const isStarting = createSession.isPending || tokenMutation.isPending || status === "connecting";
   const selectedCount = selectedIds.length;
   const feedback = asFeedback(latestFeedbackSession?.feedback || activeSession?.feedback);
+  const openingQuestionPreview = useMemo(() => {
+    const selectedAnswer = answers?.find(answer => selectedIds.includes(answer.id));
+    if (!selectedAnswer) return "";
+
+    const competency = selectedAnswer.competency || "behavioral judgment";
+    const role = targetRole.trim() || "the role";
+    const company = targetCompanyName.trim();
+    const situation = compactText(selectedAnswer.situation, 24);
+    const action = compactText(selectedAnswer.action, 18);
+    const result = compactText(selectedAnswer.result, 16);
+    const storyFocus = [
+      situation ? `where ${situation}` : null,
+      action ? `and you had to ${action.charAt(0).toLowerCase()}${action.slice(1)}` : null,
+      result ? `to drive ${result.charAt(0).toLowerCase()}${result.slice(1)}` : null,
+    ].filter(Boolean).join(" ");
+
+    if (company.toLowerCase().includes("amazon")) {
+      const principle = inferAmazonLeadershipPrinciple(competency, role);
+      return `Hi, I will run this like an Amazon ${role} behavioral interview. Let's start with Amazon's ${principle} leadership principle. In your resume, I noticed a ${competency.toLowerCase()} story ${storyFocus}. Tell me about that situation and how your choices demonstrated ${principle}.`;
+    }
+
+    if (company) {
+      return `Hi, I will run this like a ${company} interview for ${role}. I noticed a ${competency.toLowerCase()} story in your resume ${storyFocus}. Walk me through that example and the impact you had.`;
+    }
+
+    return `Hi, I will run this like a behavioral interview for ${role}. I noticed a ${competency.toLowerCase()} story in your resume ${storyFocus}. Walk me through that example and the impact you had.`;
+  }, [answers, selectedIds, targetCompanyName, targetRole]);
 
   useEffect(() => {
     if (!workspacePreferences) return;
@@ -409,6 +458,16 @@ export default function Practice() {
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
+                {openingQuestionPreview && (
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                    <div className="text-xs uppercase tracking-wide text-primary font-semibold mb-2">Opening question preview</div>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{openingQuestionPreview}</p>
+                    <p className="text-xs text-muted-foreground mt-3">
+                      If the agent says something different, set the ElevenLabs agent First Message to {"{{opening_question}}"}.
+                    </p>
+                  </div>
+                )}
+
                 <div className="flex gap-3">
                   {!isConnected ? (
                     <Button
