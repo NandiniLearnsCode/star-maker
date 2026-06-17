@@ -154,18 +154,10 @@ export default function Practice() {
       setActiveSession(session);
 
       const tokenData = await tokenMutation.mutateAsync(session.id);
-      const openingQuestion = tokenData.dynamicVariables.opening_question;
       const conversation = await Conversation.startSession({
         conversationToken: tokenData.token,
         connectionType: "webrtc",
         dynamicVariables: tokenData.dynamicVariables,
-        overrides: openingQuestion
-          ? {
-              agent: {
-                firstMessage: openingQuestion,
-              },
-            }
-          : undefined,
         userId: wsId,
         onConnect: () => {
           setStatus("connected");

@@ -70,7 +70,7 @@ Set your ElevenLabs agent's first message to:
 
 StarMaker sends this dynamic variable when voice practice starts. It is built from the selected STAR story, target role, target company, and practice mode. For example, if the target company is Amazon and the target role is Product Manager, the opening question will reference a relevant Amazon leadership principle.
 
-StarMaker also sends `opening_question` as a first-message override when the session starts. In ElevenLabs, enable the agent security setting that allows the **First message** override, or keep the dashboard first message set to `{{opening_question}}`.
+StarMaker sends `opening_question` as a dynamic variable when the session starts. Prefer setting the dashboard first message to `{{opening_question}}`; runtime first-message overrides can produce brittle provider errors if the agent security settings do not allow them.
 
 The app also sends these dynamic variables for your agent prompt:
 
