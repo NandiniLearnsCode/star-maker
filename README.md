@@ -82,4 +82,6 @@ The app also sends these dynamic variables for your agent prompt:
 {{target_role}}
 {{practice_mode}}
 {{opening_question}}
+{{opening_question_source}}
+{{opening_question_principle}}
 ```

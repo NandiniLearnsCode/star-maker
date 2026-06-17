@@ -15,6 +15,7 @@ import { useWorkspaceId } from "@/lib/workspace";
 import { useWorkspacePreferences } from "@/hooks/use-workspace-preferences";
 import { useToast } from "@/hooks/use-toast";
 import { type PracticeSession } from "@shared/schema";
+import { buildOpeningQuestion } from "@shared/interview-questions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,74 +46,6 @@ function asFeedback(value: unknown): PracticeFeedback | null {
 
 function selectedAnswerIds(value: unknown): number[] {
   return Array.isArray(value) ? value.filter((id): id is number => typeof id === "number") : [];
-}
-
-function compactText(value: string, maxWords = 22) {
-  const words = value
-    .replace(/\s+/g, " ")
-    .replace(/[.!?]+$/g, "")
-    .trim()
-    .split(" ")
-    .filter(Boolean);
-
-  if (words.length <= maxWords) return words.join(" ");
-  return `${words.slice(0, maxWords).join(" ")}...`;
-}
-
-function inferAmazonLeadershipPrinciple(competency: string, targetRole: string) {
-  const text = `${competency} ${targetRole}`.toLowerCase();
-  if (text.includes("product") || text.includes("customer") || text.includes("user")) return "Customer Obsession";
-  if (text.includes("lead")) return "Ownership";
-  if (text.includes("problem") || text.includes("analysis") || text.includes("data")) return "Dive Deep";
-  if (text.includes("invent") || text.includes("innovation") || text.includes("build")) return "Invent and Simplify";
-  if (text.includes("conflict") || text.includes("stakeholder") || text.includes("communication")) return "Earn Trust";
-  return "Ownership";
-}
-
-function lowerFirst(value: string) {
-  return value ? `${value.charAt(0).toLowerCase()}${value.slice(1)}` : value;
-}
-
-function includesAny(value: string, terms: string[]) {
-  const text = value.toLowerCase();
-  return terms.some(term => text.includes(term));
-}
-
-function buildCompetencyQuestion(
-  competency: string,
-  answer: { situation: string; task: string; action: string; result: string },
-) {
-  const text = `${competency} ${answer.situation} ${answer.task} ${answer.action} ${answer.result}`;
-  const lowerCompetency = competency.toLowerCase();
-
-  if (lowerCompetency.includes("lead")) {
-    if (includesAny(text, ["cross-functional", "stakeholder", "customer success", "analytics", "sales", "team"])) {
-      return "Tell me about a time you led a difficult cross-functional collaboration.";
-    }
-    return "Tell me about a time you had to lead others through an ambiguous or challenging situation.";
-  }
-
-  if (lowerCompetency.includes("problem")) {
-    return "Tell me about a time you solved an ambiguous problem when the right answer was not obvious.";
-  }
-
-  if (lowerCompetency.includes("communication")) {
-    return "Tell me about a time you had to communicate a complex or difficult message to stakeholders.";
-  }
-
-  if (lowerCompetency.includes("ownership")) {
-    return "Tell me about a time you took ownership of a problem that did not have a clear owner.";
-  }
-
-  if (lowerCompetency.includes("conflict")) {
-    return "Tell me about a time you handled disagreement or conflict while still moving the work forward.";
-  }
-
-  if (lowerCompetency.includes("customer")) {
-    return "Tell me about a time you used customer insight to change your approach or decision.";
-  }
-
-  return `Tell me about a time you demonstrated ${competency.toLowerCase()} in a challenging situation.`;
 }
 
 export default function Practice() {
@@ -159,44 +92,22 @@ export default function Practice() {
   const feedback = asFeedback(latestFeedbackSession?.feedback || activeSession?.feedback);
   const openingQuestionPreview = useMemo(() => {
     const selectedAnswer = answers?.find(answer => selectedIds.includes(answer.id));
-    if (!selectedAnswer) return "";
+    if (!selectedAnswer) return null;
 
-    const competency = selectedAnswer.competency || "behavioral judgment";
-    const role = targetRole.trim();
-    const roleContext = role ? ` for ${role}` : "";
-    const company = targetCompanyName.trim();
     const experience = experienceMap.get(selectedAnswer.experienceId);
-    const storyLabel = experience?.organization
-      ? `your ${experience.organization} ${competency.toLowerCase()} story`
-      : `your ${competency.toLowerCase()} story`;
-    const situation = compactText(selectedAnswer.situation, 18);
-    const situationLeadIn = situation ? `When ${lowerFirst(situation)}, ` : "";
-    const competencyQuestion = buildCompetencyQuestion(competency, selectedAnswer);
-    const answerGuidance = "Use the example you selected when you answer.";
-
-    if (mode === "story_focus") {
-      if (company.toLowerCase().includes("amazon")) {
-        const principle = inferAmazonLeadershipPrinciple(competency, role);
-        return `Let's do a story deep dive through Amazon's ${principle} lens. In ${storyLabel}, ${situationLeadIn}how did you decide what to do first, and how did your choices demonstrate ${principle}?`;
-      }
-
-      if (company) {
-        return `Let's do a story deep dive as if this were a ${company} interview${roleContext}. In ${storyLabel}, ${situationLeadIn}how did you approach the problem, and what impact did your work have?`;
-      }
-
-      return `Let's do a story deep dive on ${storyLabel}. ${situationLeadIn}how did you approach the problem, and what impact did your work have?`;
-    }
-
-    if (company.toLowerCase().includes("amazon")) {
-      const principle = inferAmazonLeadershipPrinciple(competency, role);
-      return `Let's start with Amazon's ${principle} leadership principle. ${competencyQuestion} ${answerGuidance}`;
-    }
-
-    if (company) {
-      return `Let's start with a ${company} behavioral question${roleContext}. ${competencyQuestion} ${answerGuidance}`;
-    }
-
-    return `Let's start with a competency-based behavioral question. ${competencyQuestion} ${answerGuidance}`;
+    return buildOpeningQuestion({
+      mode,
+      companyName: targetCompanyName,
+      targetRole,
+      story: {
+        competency: selectedAnswer.competency,
+        situation: selectedAnswer.situation,
+        task: selectedAnswer.task,
+        action: selectedAnswer.action,
+        result: selectedAnswer.result,
+        organization: experience?.organization,
+      },
+    });
   }, [answers, experienceMap, mode, selectedIds, targetCompanyName, targetRole]);
 
   useEffect(() => {
@@ -518,8 +429,12 @@ export default function Practice() {
               <CardContent className="space-y-4">
                 {openingQuestionPreview && (
                   <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-                    <div className="text-xs uppercase tracking-wide text-primary font-semibold mb-2">Opening question preview</div>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{openingQuestionPreview}</p>
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <div className="text-xs uppercase tracking-wide text-primary font-semibold">Opening question preview</div>
+                      <Badge variant="outline">{openingQuestionPreview.sourceLabel}</Badge>
+                      {openingQuestionPreview.principle && <Badge>{openingQuestionPreview.principle}</Badge>}
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{openingQuestionPreview.question}</p>
                     <p className="text-xs text-muted-foreground mt-3">
                       If the agent says something different, set the ElevenLabs agent First Message to {"{{opening_question}}"}.
                     </p>
