@@ -63,6 +63,32 @@ ${text}
   }
 }
 
+async function extractTextFromPdf(buffer: Buffer) {
+  const { writeFileSync, unlinkSync, readFileSync } = await import('fs');
+  const { execFileSync } = await import('child_process');
+  const { join } = await import('path');
+  const { tmpdir } = await import('os');
+  const tmpPdf = join(tmpdir(), `resume_${Date.now()}.pdf`);
+  const tmpTxt = tmpPdf.replace('.pdf', '.txt');
+
+  try {
+    writeFileSync(tmpPdf, buffer);
+    try {
+      execFileSync('pdftotext', ['-layout', tmpPdf, tmpTxt]);
+      return readFileSync(tmpTxt, 'utf-8');
+    } catch (pdftotextError) {
+      console.warn("pdftotext failed, falling back to pdf-parse:", pdftotextError instanceof Error ? pdftotextError.message : pdftotextError);
+      const pdfParseModule = await import('pdf-parse');
+      const pdfParse = pdfParseModule.default;
+      const result = await pdfParse(buffer);
+      return result.text;
+    }
+  } finally {
+    try { unlinkSync(tmpPdf); } catch {}
+    try { unlinkSync(tmpTxt); } catch {}
+  }
+}
+
 async function generateStarAnswers(experienceDesc: string) {
   const prompt = `You are an expert interview coach. Given the following experience description, generate 2 different STAR format answers targeting different competencies (e.g. Leadership, Problem Solving, Communication).
 
@@ -374,20 +400,7 @@ export async function registerRoutes(
       const name = req.file.originalname.toLowerCase();
 
       if (mime === 'application/pdf' || name.endsWith('.pdf')) {
-        const { writeFileSync, unlinkSync, readFileSync } = await import('fs');
-        const { execSync } = await import('child_process');
-        const { join } = await import('path');
-        const { tmpdir } = await import('os');
-        const tmpPdf = join(tmpdir(), `resume_${Date.now()}.pdf`);
-        const tmpTxt = tmpPdf.replace('.pdf', '.txt');
-        try {
-          writeFileSync(tmpPdf, req.file.buffer);
-          execSync(`pdftotext -layout "${tmpPdf}" "${tmpTxt}"`);
-          extractedText = readFileSync(tmpTxt, 'utf-8');
-        } finally {
-          try { unlinkSync(tmpPdf); } catch {}
-          try { unlinkSync(tmpTxt); } catch {}
-        }
+        extractedText = await extractTextFromPdf(req.file.buffer);
       } else if (
         mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
         name.endsWith('.docx')
@@ -422,7 +435,8 @@ export async function registerRoutes(
       res.status(200).json(created);
     } catch (err) {
       console.error("Upload error:", err);
-      res.status(500).json({ message: "Failed to process uploaded resume" });
+      const message = err instanceof Error ? err.message : "Failed to process uploaded resume";
+      res.status(500).json({ message: `Failed to process uploaded resume: ${message}` });
     }
   });
 
