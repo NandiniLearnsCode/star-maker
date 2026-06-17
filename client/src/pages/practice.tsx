@@ -73,6 +73,48 @@ function lowerFirst(value: string) {
   return value ? `${value.charAt(0).toLowerCase()}${value.slice(1)}` : value;
 }
 
+function includesAny(value: string, terms: string[]) {
+  const text = value.toLowerCase();
+  return terms.some(term => text.includes(term));
+}
+
+function buildCompetencyQuestion(
+  competency: string,
+  answer: { situation: string; task: string; action: string; result: string },
+) {
+  const text = `${competency} ${answer.situation} ${answer.task} ${answer.action} ${answer.result}`;
+  const lowerCompetency = competency.toLowerCase();
+
+  if (lowerCompetency.includes("lead")) {
+    if (includesAny(text, ["cross-functional", "stakeholder", "customer success", "analytics", "sales", "team"])) {
+      return "Tell me about a time you led a difficult cross-functional collaboration.";
+    }
+    return "Tell me about a time you had to lead others through an ambiguous or challenging situation.";
+  }
+
+  if (lowerCompetency.includes("problem")) {
+    return "Tell me about a time you solved an ambiguous problem when the right answer was not obvious.";
+  }
+
+  if (lowerCompetency.includes("communication")) {
+    return "Tell me about a time you had to communicate a complex or difficult message to stakeholders.";
+  }
+
+  if (lowerCompetency.includes("ownership")) {
+    return "Tell me about a time you took ownership of a problem that did not have a clear owner.";
+  }
+
+  if (lowerCompetency.includes("conflict")) {
+    return "Tell me about a time you handled disagreement or conflict while still moving the work forward.";
+  }
+
+  if (lowerCompetency.includes("customer")) {
+    return "Tell me about a time you used customer insight to change your approach or decision.";
+  }
+
+  return `Tell me about a time you demonstrated ${competency.toLowerCase()} in a challenging situation.`;
+}
+
 export default function Practice() {
   const wsId = useWorkspaceId();
   const { toast } = useToast();
@@ -129,18 +171,33 @@ export default function Practice() {
       : `your ${competency.toLowerCase()} story`;
     const situation = compactText(selectedAnswer.situation, 18);
     const situationLeadIn = situation ? `When ${lowerFirst(situation)}, ` : "";
+    const competencyQuestion = buildCompetencyQuestion(competency, selectedAnswer);
+    const answerGuidance = "Use the example you selected when you answer.";
+
+    if (mode === "story_focus") {
+      if (company.toLowerCase().includes("amazon")) {
+        const principle = inferAmazonLeadershipPrinciple(competency, role);
+        return `Let's do a story deep dive through Amazon's ${principle} lens. In ${storyLabel}, ${situationLeadIn}how did you decide what to do first, and how did your choices demonstrate ${principle}?`;
+      }
+
+      if (company) {
+        return `Let's do a story deep dive as if this were a ${company} interview${roleContext}. In ${storyLabel}, ${situationLeadIn}how did you approach the problem, and what impact did your work have?`;
+      }
+
+      return `Let's do a story deep dive on ${storyLabel}. ${situationLeadIn}how did you approach the problem, and what impact did your work have?`;
+    }
 
     if (company.toLowerCase().includes("amazon")) {
       const principle = inferAmazonLeadershipPrinciple(competency, role);
-      return `Let's start with Amazon's ${principle} leadership principle. In ${storyLabel}, ${situationLeadIn}how did you decide what to do first, and how did your choices demonstrate ${principle}?`;
+      return `Let's start with Amazon's ${principle} leadership principle. ${competencyQuestion} ${answerGuidance}`;
     }
 
     if (company) {
-      return `Let's start with ${storyLabel} as if this were a ${company} interview${roleContext}. ${situationLeadIn}how did you approach the problem, and what impact did your work have?`;
+      return `Let's start with a ${company} behavioral question${roleContext}. ${competencyQuestion} ${answerGuidance}`;
     }
 
-    return `Let's start with ${storyLabel}. ${situationLeadIn}how did you approach the problem, and what impact did your work have?`;
-  }, [answers, experienceMap, selectedIds, targetCompanyName, targetRole]);
+    return `Let's start with a competency-based behavioral question. ${competencyQuestion} ${answerGuidance}`;
+  }, [answers, experienceMap, mode, selectedIds, targetCompanyName, targetRole]);
 
   useEffect(() => {
     if (!workspacePreferences) return;
@@ -154,9 +211,7 @@ export default function Practice() {
 
   const toggleAnswer = (answerId: number) => {
     setSelectedIds(current =>
-      current.includes(answerId)
-        ? current.filter(id => id !== answerId)
-        : [...current, answerId]
+      current.includes(answerId) ? [] : [answerId]
     );
   };
 
@@ -292,7 +347,7 @@ export default function Practice() {
               <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground">Voice Practice</h1>
             </div>
             <p className="text-muted-foreground text-lg max-w-3xl">
-              Practice behavioral interviews with an ElevenLabs voice agent using your STAR stories as private context.
+              Practice competency-based behavioral questions, then pick the STAR example you want to answer with.
             </p>
           </div>
           <Badge variant="outline" className="w-fit px-3 py-1.5">
@@ -313,10 +368,10 @@ export default function Practice() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <BookOpen className="w-5 h-5 text-primary" />
-                  Choose STAR stories
+                  Choose the example you want to answer with
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  The interviewer can ask follow-ups about the stories you select, but it will not reveal your prepared answer.
+                  The coach asks a competency-based question. Select the STAR story you want to use as your answer.
                 </p>
               </CardHeader>
               <CardContent>
@@ -432,7 +487,7 @@ export default function Practice() {
                   <label className="text-sm font-medium text-foreground">Practice mode</label>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
                     {[
-                      { value: "behavioral", label: "General behavioral" },
+                      { value: "behavioral", label: "Competency question" },
                       { value: "story_focus", label: "Story deep dive" },
                       { value: "company", label: "Company style" },
                     ].map(option => (
@@ -457,7 +512,7 @@ export default function Practice() {
               <CardHeader>
                 <CardTitle>Voice session</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {selectedCount} {selectedCount === 1 ? "story" : "stories"} selected
+                  {selectedCount === 1 ? "1 example selected" : "Choose one example"}
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">

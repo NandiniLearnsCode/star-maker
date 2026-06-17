@@ -180,6 +180,46 @@ function buildSituationLeadIn(answer: any) {
   return `When ${lowerFirst(situation)}, `;
 }
 
+function includesAny(value: unknown, terms: string[]) {
+  if (typeof value !== "string") return false;
+  const text = value.toLowerCase();
+  return terms.some(term => text.includes(term));
+}
+
+function buildCompetencyQuestion(competency: string, answer: any) {
+  const text = `${competency} ${answer?.situation || ""} ${answer?.task || ""} ${answer?.action || ""} ${answer?.result || ""}`;
+  const lowerCompetency = competency.toLowerCase();
+
+  if (lowerCompetency.includes("lead")) {
+    if (includesAny(text, ["cross-functional", "stakeholder", "customer success", "analytics", "sales", "team"])) {
+      return "Tell me about a time you led a difficult cross-functional collaboration.";
+    }
+    return "Tell me about a time you had to lead others through an ambiguous or challenging situation.";
+  }
+
+  if (lowerCompetency.includes("problem")) {
+    return "Tell me about a time you solved an ambiguous problem when the right answer was not obvious.";
+  }
+
+  if (lowerCompetency.includes("communication")) {
+    return "Tell me about a time you had to communicate a complex or difficult message to stakeholders.";
+  }
+
+  if (lowerCompetency.includes("ownership")) {
+    return "Tell me about a time you took ownership of a problem that did not have a clear owner.";
+  }
+
+  if (lowerCompetency.includes("conflict")) {
+    return "Tell me about a time you handled disagreement or conflict while still moving the work forward.";
+  }
+
+  if (lowerCompetency.includes("customer")) {
+    return "Tell me about a time you used customer insight to change your approach or decision.";
+  }
+
+  return `Tell me about a time you demonstrated ${competency.toLowerCase()} in a challenging situation.`;
+}
+
 function buildOpeningQuestion(session: any, answers: any[], companyName?: string | null) {
   const firstAnswer = answers[0];
   const competency = firstAnswer?.competency || "behavioral judgment";
@@ -188,17 +228,34 @@ function buildOpeningQuestion(session: any, answers: any[], companyName?: string
   const company = companyName?.trim();
   const storyLabel = buildStoryLabel(firstAnswer, competency);
   const situationLeadIn = buildSituationLeadIn(firstAnswer);
+  const competencyQuestion = buildCompetencyQuestion(competency, firstAnswer);
+  const answerGuidance = firstAnswer
+    ? "Use the example you selected when you answer."
+    : "Use the strongest example from your experience when you answer.";
+
+  if (session.mode === "story_focus") {
+    if (company && company.toLowerCase().includes("amazon")) {
+      const principle = inferAmazonLeadershipPrinciple(competency, session.targetRole);
+      return `Let's do a story deep dive through Amazon's ${principle} lens. In ${storyLabel}, ${situationLeadIn}how did you decide what to do first, and how did your choices demonstrate ${principle}?`;
+    }
+
+    if (company) {
+      return `Let's do a story deep dive as if this were a ${company} interview${roleContext}. In ${storyLabel}, ${situationLeadIn}how did you approach the problem, and what impact did your work have?`;
+    }
+
+    return `Let's do a story deep dive on ${storyLabel}. ${situationLeadIn}how did you approach the problem, and what impact did your work have?`;
+  }
 
   if (company && company.toLowerCase().includes("amazon")) {
     const principle = inferAmazonLeadershipPrinciple(competency, session.targetRole);
-    return `Let's start with Amazon's ${principle} leadership principle. In ${storyLabel}, ${situationLeadIn}how did you decide what to do first, and how did your choices demonstrate ${principle}?`;
+    return `Let's start with Amazon's ${principle} leadership principle. ${competencyQuestion} ${answerGuidance}`;
   }
 
   if (company) {
-    return `Let's start with ${storyLabel} as if this were a ${company} interview${roleContext}. ${situationLeadIn}how did you approach the problem, and what impact did your work have?`;
+    return `Let's start with a ${company} behavioral question${roleContext}. ${competencyQuestion} ${answerGuidance}`;
   }
 
-  return `Let's start with ${storyLabel}. ${situationLeadIn}how did you approach the problem, and what impact did your work have?`;
+  return `Let's start with a competency-based behavioral question. ${competencyQuestion} ${answerGuidance}`;
 }
 
 async function getPracticeContext(session: any, workspaceId: string) {
