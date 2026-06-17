@@ -69,6 +69,10 @@ function inferAmazonLeadershipPrinciple(competency: string, targetRole: string) 
   return "Ownership";
 }
 
+function lowerFirst(value: string) {
+  return value ? `${value.charAt(0).toLowerCase()}${value.slice(1)}` : value;
+}
+
 export default function Practice() {
   const wsId = useWorkspaceId();
   const { toast } = useToast();
@@ -116,28 +120,27 @@ export default function Practice() {
     if (!selectedAnswer) return "";
 
     const competency = selectedAnswer.competency || "behavioral judgment";
-    const role = targetRole.trim() || "the role";
+    const role = targetRole.trim();
+    const roleContext = role ? ` for ${role}` : "";
     const company = targetCompanyName.trim();
-    const situation = compactText(selectedAnswer.situation, 24);
-    const action = compactText(selectedAnswer.action, 18);
-    const result = compactText(selectedAnswer.result, 16);
-    const storyFocus = [
-      situation ? `where ${situation}` : null,
-      action ? `and you had to ${action.charAt(0).toLowerCase()}${action.slice(1)}` : null,
-      result ? `to drive ${result.charAt(0).toLowerCase()}${result.slice(1)}` : null,
-    ].filter(Boolean).join(" ");
+    const experience = experienceMap.get(selectedAnswer.experienceId);
+    const storyLabel = experience?.organization
+      ? `your ${experience.organization} ${competency.toLowerCase()} story`
+      : `your ${competency.toLowerCase()} story`;
+    const situation = compactText(selectedAnswer.situation, 18);
+    const situationLeadIn = situation ? `When ${lowerFirst(situation)}, ` : "";
 
     if (company.toLowerCase().includes("amazon")) {
       const principle = inferAmazonLeadershipPrinciple(competency, role);
-      return `Hi, I will run this like an Amazon ${role} behavioral interview. Let's start with Amazon's ${principle} leadership principle. In your resume, I noticed a ${competency.toLowerCase()} story ${storyFocus}. Tell me about that situation and how your choices demonstrated ${principle}.`;
+      return `Let's start with Amazon's ${principle} leadership principle. In ${storyLabel}, ${situationLeadIn}how did you decide what to do first, and how did your choices demonstrate ${principle}?`;
     }
 
     if (company) {
-      return `Hi, I will run this like a ${company} interview for ${role}. I noticed a ${competency.toLowerCase()} story in your resume ${storyFocus}. Walk me through that example and the impact you had.`;
+      return `Let's start with ${storyLabel} as if this were a ${company} interview${roleContext}. ${situationLeadIn}how did you approach the problem, and what impact did your work have?`;
     }
 
-    return `Hi, I will run this like a behavioral interview for ${role}. I noticed a ${competency.toLowerCase()} story in your resume ${storyFocus}. Walk me through that example and the impact you had.`;
-  }, [answers, selectedIds, targetCompanyName, targetRole]);
+    return `Let's start with ${storyLabel}. ${situationLeadIn}how did you approach the problem, and what impact did your work have?`;
+  }, [answers, experienceMap, selectedIds, targetCompanyName, targetRole]);
 
   useEffect(() => {
     if (!workspacePreferences) return;

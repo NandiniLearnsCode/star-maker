@@ -164,40 +164,41 @@ function compactText(value: unknown, maxWords = 22) {
   return `${words.slice(0, maxWords).join(" ")}...`;
 }
 
-function buildStorySpecificPrompt(answer: any) {
-  if (!answer) {
-    return "a challenging situation from your experience";
-  }
+function lowerFirst(value: string) {
+  return value ? `${value.charAt(0).toLowerCase()}${value.slice(1)}` : value;
+}
 
-  const situation = compactText(answer.situation, 24);
-  const action = compactText(answer.action, 18);
-  const result = compactText(answer.result, 16);
-  const parts = [
-    situation ? `where ${situation}` : null,
-    action ? `and you had to ${action.charAt(0).toLowerCase()}${action.slice(1)}` : null,
-    result ? `to drive ${result.charAt(0).toLowerCase()}${result.slice(1)}` : null,
-  ].filter(Boolean);
+function buildStoryLabel(answer: any, competency: string) {
+  const organization = answer?._experience?.organization;
+  if (organization) return `your ${organization} ${competency.toLowerCase()} story`;
+  return `your ${competency.toLowerCase()} story`;
+}
 
-  return parts.length ? parts.join(" ") : `related to ${answer.competency || "your experience"}`;
+function buildSituationLeadIn(answer: any) {
+  const situation = compactText(answer?.situation, 18);
+  if (!situation) return "";
+  return `When ${lowerFirst(situation)}, `;
 }
 
 function buildOpeningQuestion(session: any, answers: any[], companyName?: string | null) {
   const firstAnswer = answers[0];
   const competency = firstAnswer?.competency || "behavioral judgment";
-  const role = session.targetRole || "the role";
+  const role = session.targetRole?.trim();
+  const roleContext = role ? ` for ${role}` : "";
   const company = companyName?.trim();
-  const storyFocus = buildStorySpecificPrompt(firstAnswer);
+  const storyLabel = buildStoryLabel(firstAnswer, competency);
+  const situationLeadIn = buildSituationLeadIn(firstAnswer);
 
   if (company && company.toLowerCase().includes("amazon")) {
     const principle = inferAmazonLeadershipPrinciple(competency, session.targetRole);
-    return `Hi, I will run this like an Amazon ${role} behavioral interview. Let's start with Amazon's ${principle} leadership principle. In your resume, I noticed a ${competency.toLowerCase()} story ${storyFocus}. Tell me about that situation and how your choices demonstrated ${principle}.`;
+    return `Let's start with Amazon's ${principle} leadership principle. In ${storyLabel}, ${situationLeadIn}how did you decide what to do first, and how did your choices demonstrate ${principle}?`;
   }
 
   if (company) {
-    return `Hi, I will run this like a ${company} interview for ${role}. I noticed a ${competency.toLowerCase()} story in your resume ${storyFocus}. Walk me through that example and the impact you had.`;
+    return `Let's start with ${storyLabel} as if this were a ${company} interview${roleContext}. ${situationLeadIn}how did you approach the problem, and what impact did your work have?`;
   }
 
-  return `Hi, I will run this like a behavioral interview for ${role}. I noticed a ${competency.toLowerCase()} story in your resume ${storyFocus}. Walk me through that example and the impact you had.`;
+  return `Let's start with ${storyLabel}. ${situationLeadIn}how did you approach the problem, and what impact did your work have?`;
 }
 
 async function getPracticeContext(session: any, workspaceId: string) {
@@ -206,7 +207,8 @@ async function getPracticeContext(session: any, workspaceId: string) {
   for (const id of ids) {
     const answer = await storage.getStarAnswer(id);
     if (answer && answer.workspaceId === workspaceId) {
-      answers.push(answer);
+      const experience = await storage.getExperience(answer.experienceId);
+      answers.push({ ...answer, _experience: experience });
     }
   }
 
