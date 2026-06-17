@@ -596,9 +596,9 @@ export function buildOpeningQuestion(input: OpeningQuestionInput): OpeningQuesti
   const fallbackQuestion = buildGeneralCompetencyQuestion(competency, story);
   if (company) {
     return {
-      question: `I do not have a curated ${company} question in the bank yet, so I will use a company-style behavioral question${roleContext}. ${fallbackQuestion} ${answerGuidance}`,
+      question: `Let's start with a ${company} behavioral question${roleContext}. ${fallbackQuestion} ${answerGuidance}`,
       source: "company_fallback",
-      sourceLabel: `${company} fallback question`,
+      sourceLabel: `${company} company-style question`,
       competency,
     };
   }
