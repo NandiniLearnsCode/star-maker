@@ -69,6 +69,7 @@ export default function Practice() {
     const answerId = Number(new URLSearchParams(window.location.search).get("answerId"));
     return Number.isFinite(answerId) && answerId > 0 ? [answerId] : [];
   });
+  const [selectedExperienceId, setSelectedExperienceId] = useState<number | null>(null);
   const [targetRole, setTargetRole] = useState("");
   const [targetCompanyName, setTargetCompanyName] = useState("");
   const [mode, setMode] = useState<"behavioral" | "company" | "story_focus">("behavioral");
@@ -88,27 +89,33 @@ export default function Practice() {
 
   const isConnected = status === "connected" || status === "connecting";
   const isStarting = createSession.isPending || tokenMutation.isPending || status === "connecting";
-  const selectedCount = selectedIds.length;
   const feedback = asFeedback(latestFeedbackSession?.feedback || activeSession?.feedback);
   const openingQuestionPreview = useMemo(() => {
     const selectedAnswer = answers?.find(answer => selectedIds.includes(answer.id));
-    if (!selectedAnswer) return null;
+    const selectedExperience = selectedExperienceId ? experiences?.find(experience => experience.id === selectedExperienceId) : undefined;
 
-    const experience = experienceMap.get(selectedAnswer.experienceId);
+    const experience = selectedAnswer ? experienceMap.get(selectedAnswer.experienceId) : selectedExperience;
     return buildOpeningQuestion({
       mode,
       companyName: targetCompanyName,
       targetRole,
-      story: {
+      story: selectedAnswer ? {
         competency: selectedAnswer.competency,
         situation: selectedAnswer.situation,
         task: selectedAnswer.task,
         action: selectedAnswer.action,
         result: selectedAnswer.result,
         organization: experience?.organization,
-      },
+      } : selectedExperience ? {
+        competency: "behavioral judgment",
+        situation: selectedExperience.description,
+        task: selectedExperience.title,
+        action: selectedExperience.description,
+        result: "",
+        organization: selectedExperience.organization,
+      } : null,
     });
-  }, [answers, experienceMap, mode, selectedIds, targetCompanyName, targetRole]);
+  }, [answers, experienceMap, experiences, mode, selectedExperienceId, selectedIds, targetCompanyName, targetRole]);
 
   useEffect(() => {
     if (!workspacePreferences) return;
@@ -121,9 +128,32 @@ export default function Practice() {
   }, [targetCompanyName, targetRole, workspacePreferences]);
 
   const toggleAnswer = (answerId: number) => {
+    const answer = answers?.find(item => item.id === answerId);
+    const exp = answer ? experienceMap.get(answer.experienceId) : undefined;
     setSelectedIds(current =>
       current.includes(answerId) ? [] : [answerId]
     );
+    setSelectedExperienceId(null);
+
+    if (answer && conversationRef.current?.isOpen()) {
+      conversationRef.current.sendContextualUpdate(
+        `The candidate selected this prepared STAR example to answer with. Competency: ${answer.competency}. Experience: ${exp?.title || "Unknown"} at ${exp?.organization || "Unknown"}. Situation: ${answer.situation}. Task: ${answer.task}. Action: ${answer.action}. Result: ${answer.result}. Ask follow-up questions based on this example after the candidate answers.`,
+      );
+      toast({ title: "Example shared with coach", description: "The voice coach can now use this example for follow-ups." });
+    }
+  };
+
+  const selectExperienceExample = (experienceId: number) => {
+    const experience = experiences?.find(item => item.id === experienceId);
+    setSelectedExperienceId(current => current === experienceId ? null : experienceId);
+    setSelectedIds([]);
+
+    if (experience && conversationRef.current?.isOpen()) {
+      conversationRef.current.sendContextualUpdate(
+        `The candidate selected this resume experience to answer with. Role or project: ${experience.title}. Organization: ${experience.organization}. Dates: ${experience.dateRange}. Description: ${experience.description}. Ask follow-up questions based on this example after the candidate answers.`,
+      );
+      toast({ title: "Resume example shared with coach", description: "The voice coach can now use this resume example for follow-ups." });
+    }
   };
 
   const recordTurn = (sessionId: number, speaker: "user" | "agent", text: string, eventId?: number) => {
@@ -149,11 +179,6 @@ export default function Practice() {
   };
 
   const handleStart = async () => {
-    if (selectedIds.length === 0) {
-      toast({ title: "Choose a story", description: "Select at least one STAR story before starting practice." });
-      return;
-    }
-
     setStartError(null);
     setTranscript([]);
     setLatestFeedbackSession(null);
@@ -258,7 +283,7 @@ export default function Practice() {
               <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground">Voice Practice</h1>
             </div>
             <p className="text-muted-foreground text-lg max-w-3xl">
-              Practice competency-based behavioral questions, then pick the STAR example you want to answer with.
+              Start with a company-style question, then pick the resume example you want to answer with.
             </p>
           </div>
           <Badge variant="outline" className="w-fit px-3 py-1.5">
@@ -279,29 +304,32 @@ export default function Practice() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <BookOpen className="w-5 h-5 text-primary" />
-                  Choose the example you want to answer with
+                  Choose an example to answer with
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  The coach asks a competency-based question. Select the STAR story you want to use as your answer.
+                  You can start practice first, then select a prepared STAR answer or resume experience to use as your response.
                 </p>
               </CardHeader>
               <CardContent>
                 {answersLoading ? (
                   <div className="py-12 text-center text-muted-foreground">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-3" />
-                    Loading your answer bank...
+                    Loading your examples...
                   </div>
-                ) : !answers || answers.length === 0 ? (
+                ) : (!answers || answers.length === 0) && (!experiences || experiences.length === 0) ? (
                   <div className="py-12 text-center border border-dashed rounded-xl bg-muted/20">
                     <Sparkles className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-                    <h3 className="font-display font-semibold">No STAR stories yet</h3>
+                    <h3 className="font-display font-semibold">No resume examples yet</h3>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Generate STAR answers from an experience before starting voice practice.
+                      Upload your resume or add an experience to choose an example during practice.
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {answers.map(answer => {
+                  <div className="space-y-5">
+                    {answers && answers.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">Prepared STAR answers</div>
+                        {answers.map(answer => {
                       const exp = experienceMap.get(answer.experienceId);
                       const checked = selectedIds.includes(answer.id);
                       return (
@@ -355,7 +383,53 @@ export default function Practice() {
                           </div>
                         </div>
                       );
-                    })}
+                        })}
+                      </div>
+                    )}
+
+                    {experiences && experiences.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">Resume experiences</div>
+                        {experiences.map(experience => {
+                          const checked = selectedExperienceId === experience.id;
+                          return (
+                            <div
+                              key={experience.id}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => selectExperienceExample(experience.id)}
+                              onKeyDown={event => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault();
+                                  selectExperienceExample(experience.id);
+                                }
+                              }}
+                              className={`w-full cursor-pointer text-left rounded-xl border p-4 transition-all ${
+                                checked ? "border-primary bg-primary/5 shadow-sm" : "border-border/60 bg-card hover:bg-muted/30"
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={() => selectExperienceExample(experience.id)}
+                                  onClick={event => event.stopPropagation()}
+                                  className="mt-1"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                                    <Badge variant="outline">{experience.type}</Badge>
+                                    <span className="text-xs text-muted-foreground">{experience.title} at {experience.organization}</span>
+                                  </div>
+                                  <p className={`text-sm text-muted-foreground leading-relaxed ${checked ? "" : "line-clamp-3"}`}>
+                                    {experience.description}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -423,7 +497,7 @@ export default function Practice() {
               <CardHeader>
                 <CardTitle>Voice session</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {selectedCount === 1 ? "1 example selected" : "Choose one example"}
+                  {selectedIds.length === 1 || selectedExperienceId ? "1 example selected" : "Question-first mode"}
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -447,7 +521,7 @@ export default function Practice() {
                       size="lg"
                       className="flex-1"
                       onClick={handleStart}
-                      disabled={isStarting || selectedCount === 0 || !answers?.length}
+                      disabled={isStarting}
                       data-testid="button-start-voice-practice"
                     >
                       {isStarting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Play className="w-5 h-5 mr-2" />}

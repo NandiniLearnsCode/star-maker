@@ -615,8 +615,9 @@ No markdown formatting, just the JSON object.`;
     try {
       const wsId = (req as any).workspaceId;
       const input = api.practiceSessions.create.input.parse(req.body);
+      const selectedStarAnswerIds = input.selectedStarAnswerIds || [];
 
-      for (const answerId of input.selectedStarAnswerIds) {
+      for (const answerId of selectedStarAnswerIds) {
         const answer = await storage.getStarAnswer(answerId);
         if (!answer || answer.workspaceId !== wsId) {
           return res.status(404).json({ message: "Selected STAR answer not found" });
@@ -637,7 +638,7 @@ No markdown formatting, just the JSON object.`;
         targetRole: input.targetRole || null,
         targetCompanyName: input.targetCompanyName || null,
         companyId: input.companyId || null,
-        selectedStarAnswerIds: input.selectedStarAnswerIds,
+        selectedStarAnswerIds,
         elevenLabsConversationId: null,
         transcriptSummary: null,
         feedback: null,

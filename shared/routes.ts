@@ -190,7 +190,7 @@ export const api = {
       method: 'POST' as const,
       path: '/api/practice-sessions' as const,
       input: z.object({
-        selectedStarAnswerIds: z.array(z.number()).min(1, "Choose at least one STAR story to practice"),
+        selectedStarAnswerIds: z.array(z.number()).default([]),
         mode: z.enum(['behavioral', 'company', 'story_focus']).default('behavioral'),
         targetRole: z.string().trim().optional(),
         targetCompanyName: z.string().trim().optional(),
