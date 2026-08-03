@@ -19,6 +19,8 @@ STAR Maker — AI-powered career story builder that helps students and early-car
 
    ```bash
    DATABASE_URL=postgres://postgres:postgres@localhost:5432/star_maker
+   ANTHROPIC_API_KEY=your_anthropic_key
+   ANTHROPIC_BASE_URL=https://api.anthropic.com
    AI_INTEGRATIONS_ANTHROPIC_API_KEY=your_anthropic_key
    AI_INTEGRATIONS_ANTHROPIC_BASE_URL=your_anthropic_base_url
    ELEVENLABS_API_KEY=your_elevenlabs_key
@@ -27,6 +29,7 @@ STAR Maker — AI-powered career story builder that helps students and early-car
    ```
 
    Keep `.env` local. It is ignored by git and should not be committed.
+   You can use either `ANTHROPIC_API_KEY` or `AI_INTEGRATIONS_ANTHROPIC_API_KEY`; `ANTHROPIC_API_KEY` is the simpler option for Replit secrets.
 
 4. Start a local Postgres database. One quick Docker option:
 
