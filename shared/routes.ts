@@ -1,5 +1,15 @@
 import { z } from 'zod';
-import { insertExperienceSchema, insertStarAnswerSchema, insertCompanySchema, experiences, starAnswers, companies } from './schema';
+import {
+  insertExperienceSchema,
+  insertStarAnswerSchema,
+  insertCompanySchema,
+  workspaces,
+  experiences,
+  starAnswers,
+  companies,
+  practiceSessions,
+  practiceTurns,
+} from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -15,6 +25,21 @@ export const errorSchemas = {
 };
 
 export const api = {
+  workspaces: {
+    updatePreferences: {
+      method: 'PUT' as const,
+      path: '/api/workspaces/preferences' as const,
+      input: z.object({
+        targetRole: z.string().trim().optional(),
+        targetCompanyName: z.string().trim().optional(),
+      }),
+      responses: {
+        200: z.custom<typeof workspaces.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
+  },
   experiences: {
     list: {
       method: 'GET' as const,
@@ -141,6 +166,87 @@ export const api = {
         200: z.array(z.custom<typeof companies.$inferSelect>()),
       }
     }
+  },
+  practiceSessions: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/practice-sessions' as const,
+      responses: {
+        200: z.array(z.custom<typeof practiceSessions.$inferSelect>()),
+      },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/practice-sessions/:id' as const,
+      responses: {
+        200: z.object({
+          session: z.custom<typeof practiceSessions.$inferSelect>(),
+          turns: z.array(z.custom<typeof practiceTurns.$inferSelect>()),
+        }),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/practice-sessions' as const,
+      input: z.object({
+        selectedStarAnswerIds: z.array(z.number()).default([]),
+        mode: z.enum(['behavioral', 'company', 'story_focus']).default('behavioral'),
+        targetRole: z.string().trim().optional(),
+        targetCompanyName: z.string().trim().optional(),
+        companyId: z.number().optional(),
+      }),
+      responses: {
+        201: z.custom<typeof practiceSessions.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    conversationToken: {
+      method: 'POST' as const,
+      path: '/api/practice-sessions/:id/conversation-token' as const,
+      responses: {
+        200: z.object({
+          token: z.string(),
+          practiceSessionId: z.number(),
+          dynamicVariables: z.record(z.string()),
+        }),
+        404: errorSchemas.notFound,
+      },
+    },
+    addTurn: {
+      method: 'POST' as const,
+      path: '/api/practice-sessions/:id/turns' as const,
+      input: z.object({
+        speaker: z.enum(['user', 'agent']),
+        text: z.string().trim().min(1),
+        sequence: z.number().int().nonnegative().optional(),
+        metadata: z.record(z.unknown()).optional(),
+      }),
+      responses: {
+        201: z.custom<typeof practiceTurns.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
+    complete: {
+      method: 'POST' as const,
+      path: '/api/practice-sessions/:id/complete' as const,
+      input: z.object({
+        elevenLabsConversationId: z.string().optional(),
+      }).optional(),
+      responses: {
+        200: z.custom<typeof practiceSessions.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    feedback: {
+      method: 'POST' as const,
+      path: '/api/practice-sessions/:id/feedback' as const,
+      responses: {
+        200: z.custom<typeof practiceSessions.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
   }
 };
 
@@ -158,3 +264,5 @@ export function buildUrl(path: string, params?: Record<string, string | number>)
 
 export type ExperienceInput = z.infer<typeof api.experiences.create.input>;
 export type StarAnswerInput = z.infer<typeof api.starAnswers.update.input>;
+export type PracticeSessionInput = z.infer<typeof api.practiceSessions.create.input>;
+export type PracticeTurnInput = z.infer<typeof api.practiceSessions.addTurn.input>;

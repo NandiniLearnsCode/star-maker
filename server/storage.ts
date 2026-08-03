@@ -4,17 +4,23 @@ import {
   experiences,
   starAnswers,
   companies,
+  practiceSessions,
+  practiceTurns,
   type InsertExperience,
   type InsertStarAnswer,
   type InsertCompany,
+  type InsertPracticeSession,
+  type InsertPracticeTurn,
   type UpdateExperienceRequest,
   type UpdateStarAnswerRequest,
+  type UpdatePracticeSessionRequest,
 } from "@shared/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, asc } from "drizzle-orm";
 
 export interface IStorage {
   createWorkspace(id: string): Promise<typeof workspaces.$inferSelect>;
   getWorkspace(id: string): Promise<typeof workspaces.$inferSelect | undefined>;
+  updateWorkspacePreferences(id: string, preferences: { targetRole: string | null; targetCompanyName: string | null }): Promise<typeof workspaces.$inferSelect>;
 
   getExperiences(workspaceId: string): Promise<(typeof experiences.$inferSelect)[]>;
   getExperience(id: number): Promise<typeof experiences.$inferSelect | undefined>;
@@ -31,6 +37,14 @@ export interface IStorage {
   getCompanies(workspaceId: string): Promise<(typeof companies.$inferSelect)[]>;
   getCompany(id: number): Promise<typeof companies.$inferSelect | undefined>;
   createCompany(company: InsertCompany): Promise<typeof companies.$inferSelect>;
+
+  getPracticeSessions(workspaceId: string): Promise<(typeof practiceSessions.$inferSelect)[]>;
+  getPracticeSession(id: number): Promise<typeof practiceSessions.$inferSelect | undefined>;
+  createPracticeSession(session: InsertPracticeSession): Promise<typeof practiceSessions.$inferSelect>;
+  updatePracticeSession(id: number, updates: UpdatePracticeSessionRequest): Promise<typeof practiceSessions.$inferSelect>;
+
+  getPracticeTurns(sessionId: number): Promise<(typeof practiceTurns.$inferSelect)[]>;
+  createPracticeTurn(turn: InsertPracticeTurn): Promise<typeof practiceTurns.$inferSelect>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -41,6 +55,10 @@ export class DatabaseStorage implements IStorage {
   async getWorkspace(id: string) {
     const [ws] = await db.select().from(workspaces).where(eq(workspaces.id, id));
     return ws;
+  }
+  async updateWorkspacePreferences(id: string, preferences: { targetRole: string | null; targetCompanyName: string | null }) {
+    const [updated] = await db.update(workspaces).set(preferences).where(eq(workspaces.id, id)).returning();
+    return updated;
   }
 
   async getExperiences(workspaceId: string) {
@@ -93,6 +111,30 @@ export class DatabaseStorage implements IStorage {
   }
   async createCompany(company: InsertCompany) {
     const [created] = await db.insert(companies).values(company).returning();
+    return created;
+  }
+
+  async getPracticeSessions(workspaceId: string) {
+    return await db.select().from(practiceSessions).where(eq(practiceSessions.workspaceId, workspaceId)).orderBy(desc(practiceSessions.createdAt));
+  }
+  async getPracticeSession(id: number) {
+    const [session] = await db.select().from(practiceSessions).where(eq(practiceSessions.id, id));
+    return session;
+  }
+  async createPracticeSession(session: InsertPracticeSession) {
+    const [created] = await db.insert(practiceSessions).values(session).returning();
+    return created;
+  }
+  async updatePracticeSession(id: number, updates: UpdatePracticeSessionRequest) {
+    const [updated] = await db.update(practiceSessions).set(updates).where(eq(practiceSessions.id, id)).returning();
+    return updated;
+  }
+
+  async getPracticeTurns(sessionId: number) {
+    return await db.select().from(practiceTurns).where(eq(practiceTurns.sessionId, sessionId)).orderBy(asc(practiceTurns.sequence));
+  }
+  async createPracticeTurn(turn: InsertPracticeTurn) {
+    const [created] = await db.insert(practiceTurns).values(turn).returning();
     return created;
   }
 }

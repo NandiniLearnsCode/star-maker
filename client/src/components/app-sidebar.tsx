@@ -1,4 +1,4 @@
-import { Briefcase, Sparkles, BookOpen, Link2 } from "lucide-react";
+import { Briefcase, Sparkles, BookOpen, Link2, Mic } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useWorkspaceId } from "@/lib/workspace";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +24,7 @@ export function AppSidebar() {
   const items = [
     { title: "Experiences", url: `/w/${wsId}/experiences`, icon: Briefcase },
     { title: "Answer Bank", url: `/w/${wsId}/answer-bank`, icon: BookOpen },
+    { title: "Voice Practice", url: `/w/${wsId}/practice`, icon: Mic },
   ];
 
   const handleCopyLink = () => {

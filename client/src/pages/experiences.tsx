@@ -1,9 +1,10 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Plus, Upload, Briefcase, Calendar, ChevronRight, FileText, Sparkles, Loader2 } from "lucide-react";
+import { Plus, Upload, Briefcase, Calendar, ChevronRight, FileText, Sparkles, Loader2, Target, Building2, Mic } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { useExperiences, useCreateExperience, useParseResume, useUploadResume } from "@/hooks/use-experiences";
+import { useUpdateWorkspacePreferences, useWorkspacePreferences } from "@/hooks/use-workspace-preferences";
 import { useWorkspaceId } from "@/lib/workspace";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -18,6 +19,8 @@ export default function Experiences() {
   const createMutation = useCreateExperience();
   const parseMutation = useParseResume();
   const uploadMutation = useUploadResume();
+  const { data: workspacePreferences } = useWorkspacePreferences();
+  const updateWorkspacePreferences = useUpdateWorkspacePreferences();
   const wsId = useWorkspaceId();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -31,10 +34,43 @@ export default function Experiences() {
   });
   const [resumeText, setResumeText] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [interviewTarget, setInterviewTarget] = useState({
+    targetCompanyName: "",
+    targetRole: "",
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleManualSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (workspacePreferences) {
+      setInterviewTarget({
+        targetCompanyName: workspacePreferences.targetCompanyName || "",
+        targetRole: workspacePreferences.targetRole || "",
+      });
+    }
+  }, [workspacePreferences]);
+
+  const saveInterviewTarget = () => {
+    return updateWorkspacePreferences.mutateAsync({
+      targetCompanyName: interviewTarget.targetCompanyName,
+      targetRole: interviewTarget.targetRole,
+    });
+  };
+
+  const handleSaveInterviewTarget = async () => {
+    try {
+      await saveInterviewTarget();
+    } catch {
+      return;
+    }
+  };
+
+  const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      await saveInterviewTarget();
+    } catch {
+      return;
+    }
     createMutation.mutate(manualForm, {
       onSuccess: () => {
         setIsOpen(false);
@@ -43,8 +79,13 @@ export default function Experiences() {
     });
   };
 
-  const handleParseSubmit = (e: React.FormEvent) => {
+  const handleParseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      await saveInterviewTarget();
+    } catch {
+      return;
+    }
     parseMutation.mutate(resumeText, {
       onSuccess: () => {
         setIsOpen(false);
@@ -87,6 +128,35 @@ export default function Experiences() {
                 </TabsList>
                 
                 <div className="p-6">
+                  <div className="mb-6 rounded-xl border border-border/60 bg-muted/20 p-4 space-y-3">
+                    <div>
+                      <h3 className="font-display font-semibold text-sm">Optional interview target</h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Add this now if you already know where you are interviewing. You can change it later in Voice Practice.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>Target company</Label>
+                        <Input
+                          placeholder="e.g. Amazon"
+                          value={interviewTarget.targetCompanyName}
+                          onChange={e => setInterviewTarget(prev => ({ ...prev, targetCompanyName: e.target.value }))}
+                          data-testid="input-target-company"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Target role</Label>
+                        <Input
+                          placeholder="e.g. Product Manager"
+                          value={interviewTarget.targetRole}
+                          onChange={e => setInterviewTarget(prev => ({ ...prev, targetRole: e.target.value }))}
+                          data-testid="input-target-role"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <TabsContent value="upload" className="mt-0 outline-none">
                     <div className="space-y-4">
                       <div className="space-y-2">
@@ -131,9 +201,14 @@ export default function Experiences() {
                       </div>
                       <Button
                         className="w-full"
-                        disabled={!selectedFile || uploadMutation.isPending}
-                        onClick={() => {
+                        disabled={!selectedFile || uploadMutation.isPending || updateWorkspacePreferences.isPending}
+                        onClick={async () => {
                           if (selectedFile) {
+                            try {
+                              await saveInterviewTarget();
+                            } catch {
+                              return;
+                            }
                             uploadMutation.mutate(selectedFile, {
                               onSuccess: () => {
                                 setIsOpen(false);
@@ -145,10 +220,10 @@ export default function Experiences() {
                         }}
                         data-testid="button-upload-resume"
                       >
-                        {uploadMutation.isPending ? (
+                        {(uploadMutation.isPending || updateWorkspacePreferences.isPending) ? (
                           <>
                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Extracting experiences...
+                            Saving and extracting...
                           </>
                         ) : (
                           "Upload & Extract Experiences"
@@ -169,11 +244,11 @@ export default function Experiences() {
                           data-testid="textarea-paste-resume"
                         />
                       </div>
-                      <Button type="submit" className="w-full" disabled={!resumeText || parseMutation.isPending} data-testid="button-parse-resume">
-                        {parseMutation.isPending ? (
+                      <Button type="submit" className="w-full" disabled={!resumeText || parseMutation.isPending || updateWorkspacePreferences.isPending} data-testid="button-parse-resume">
+                        {(parseMutation.isPending || updateWorkspacePreferences.isPending) ? (
                           <>
                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Extracting...
+                            Saving and extracting...
                           </>
                         ) : "Extract Experiences"}
                       </Button>
@@ -207,8 +282,8 @@ export default function Experiences() {
                           data-testid="textarea-description"
                         />
                       </div>
-                      <Button type="submit" className="w-full" disabled={createMutation.isPending} data-testid="button-save-experience">
-                        Save Experience
+                      <Button type="submit" className="w-full" disabled={createMutation.isPending || updateWorkspacePreferences.isPending} data-testid="button-save-experience">
+                        {(createMutation.isPending || updateWorkspacePreferences.isPending) ? "Saving..." : "Save Experience"}
                       </Button>
                     </form>
                   </TabsContent>
@@ -217,6 +292,83 @@ export default function Experiences() {
             </DialogContent>
           </Dialog>
         </div>
+
+        <Card className="mb-8 border-primary/20 bg-gradient-to-br from-primary/10 via-card to-card shadow-sm">
+          <CardHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="bg-primary/10 text-primary p-2 rounded-xl">
+                <Target className="w-5 h-5" />
+              </div>
+              <div>
+                <CardTitle>Set your interview target</CardTitle>
+                <CardDescription>
+                  Start with the company and role if you know them. StarMaker uses this to tailor voice-coach questions.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-primary" />
+                  Company you are interviewing with
+                </Label>
+                <Input
+                  placeholder="e.g. Amazon"
+                  value={interviewTarget.targetCompanyName}
+                  onChange={e => setInterviewTarget(prev => ({ ...prev, targetCompanyName: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-primary" />
+                  Role you are interviewing for
+                </Label>
+                <Input
+                  placeholder="e.g. Product Manager"
+                  value={interviewTarget.targetRole}
+                  onChange={e => setInterviewTarget(prev => ({ ...prev, targetRole: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+              <div className="rounded-xl border border-border/60 bg-background/70 p-4">
+                <div className="font-semibold mb-1">1. Set target</div>
+                <p className="text-muted-foreground">Tell StarMaker the company and role, or leave it blank for general practice.</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-background/70 p-4">
+                <div className="font-semibold mb-1">2. Upload resume</div>
+                <p className="text-muted-foreground">Extract experiences and generate STAR examples from your background.</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-background/70 p-4">
+                <div className="font-semibold mb-1">3. Practice aloud</div>
+                <p className="text-muted-foreground">The voice coach asks competency questions; you choose which example to answer with.</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button onClick={handleSaveInterviewTarget} disabled={updateWorkspacePreferences.isPending}>
+                {updateWorkspacePreferences.isPending ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving target...</>
+                ) : (
+                  "Save interview target"
+                )}
+              </Button>
+              <Button variant="outline" onClick={() => setIsOpen(true)}>
+                <Upload className="w-4 h-4 mr-2" /> Upload resume or add experience
+              </Button>
+              {experiences && experiences.length > 0 && (
+                <Link href={`/w/${wsId}/practice`}>
+                  <Button variant="outline">
+                    <Mic className="w-4 h-4 mr-2" /> Go to Voice Practice
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {isLoading ? (
           <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">

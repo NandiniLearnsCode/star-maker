@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl, type InsertExperience } from "@shared/routes";
+import { api, buildUrl } from "@shared/routes";
+import { type Experience, type InsertExperience } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkspaceId } from "@/lib/workspace";
 
@@ -9,7 +10,7 @@ function wsHeaders(workspaceId: string) {
 
 export function useExperiences() {
   const wsId = useWorkspaceId();
-  return useQuery({
+  return useQuery<Experience[]>({
     queryKey: [api.experiences.list.path, wsId],
     queryFn: async () => {
       const res = await fetch(api.experiences.list.path, { credentials: "include", headers: wsHeaders(wsId) });
@@ -21,7 +22,7 @@ export function useExperiences() {
 
 export function useExperience(id: number) {
   const wsId = useWorkspaceId();
-  return useQuery({
+  return useQuery<Experience | null>({
     queryKey: [api.experiences.get.path, id, wsId],
     queryFn: async () => {
       const url = buildUrl(api.experiences.get.path, { id });

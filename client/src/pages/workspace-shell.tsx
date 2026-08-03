@@ -1,15 +1,17 @@
-import { useRoute, Switch, Route, Redirect } from "wouter";
+import { useEffect } from "react";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { WorkspaceProvider } from "@/lib/workspace";
 import { setStoredWorkspaceId } from "@/lib/workspace";
 import Experiences from "@/pages/experiences";
 import ExperienceDetail from "@/pages/experience-detail";
 import AnswerBank from "@/pages/answer-bank";
+import Practice from "@/pages/practice";
 import { Loader2 } from "lucide-react";
 
 export default function WorkspaceShell() {
-  const [, params] = useRoute("/w/:workspaceId/:rest*");
-  const workspaceId = params?.workspaceId || "";
+  const [location] = useLocation();
+  const workspaceId = decodeURIComponent(/^\/w\/([^/]+)/.exec(location)?.[1] || "");
 
   const { data: workspace, isLoading, isError } = useQuery({
     queryKey: ["/api/workspaces", workspaceId],
@@ -21,6 +23,12 @@ export default function WorkspaceShell() {
     enabled: !!workspaceId,
   });
 
+  useEffect(() => {
+    if (workspaceId) {
+      setStoredWorkspaceId(workspaceId);
+    }
+  }, [workspaceId]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
@@ -29,11 +37,9 @@ export default function WorkspaceShell() {
     );
   }
 
-  if (!workspace || isError) {
+  if (!workspaceId || !workspace || isError) {
     return <Redirect to="/" />;
   }
-
-  setStoredWorkspaceId(workspaceId);
 
   return (
     <WorkspaceProvider workspaceId={workspaceId}>
@@ -42,6 +48,7 @@ export default function WorkspaceShell() {
         <Route path="/w/:workspaceId/experiences" component={Experiences} />
         <Route path="/w/:workspaceId/experiences/:id" component={ExperienceDetail} />
         <Route path="/w/:workspaceId/answer-bank" component={AnswerBank} />
+        <Route path="/w/:workspaceId/practice" component={Practice} />
         <Route component={() => <Redirect to={`/w/${workspaceId}/experiences`} />} />
       </Switch>
     </WorkspaceProvider>
